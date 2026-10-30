@@ -17,6 +17,14 @@ version in [`docs/changelog/`](docs/changelog/):
   work now wait for a connection asynchronously instead of creating hundreds
   of blocking threads and long-lived read transactions that starve the server
   and hold back WAL checkpoints (#1866).
+- The web UI's root operator now sees every user's sessions in a project's
+  Sessions, Agents and Token usage tabs, on each agent's page and on each
+  session's page, and so do the `/api/v1` session list and observations
+  routes. The dashboard counted every user's sessions while these drilldowns
+  listed only root's own, so on a shared server most counted sessions could
+  not be opened. Other users still see only their own sessions plus shared
+  ones (#1867).
+
 - Excluded Codex's generated approval-review transcripts and background
   suggestion prompts from transcript backfill and profile harvesting, and
   kept a hand-reworded profile page attached to its ledger topic even when a
