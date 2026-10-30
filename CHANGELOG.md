@@ -13,6 +13,9 @@ version in [`docs/changelog/`](docs/changelog/):
 
 ### Fixed
 
+- Project search links now use the project's current stored name after
+  resolving a canonical or legacy key. Results, breadcrumbs, and the scope
+  selector stay on that project without renaming it (#1875).
 - The CJK index backfill (V87) now also repairs a page or observation stored at
   rowid `i64::MIN`. Its exclusive initial cursor skipped that one valid SQLite
   rowid; the inclusive cursor now covers both rowid extremes (#1873).
