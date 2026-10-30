@@ -13,6 +13,10 @@ version in [`docs/changelog/`](docs/changelog/):
 
 ### Fixed
 
+- Bounded the SQLite read pool to four in-flight reads. Bursts of concurrent
+  work now wait for a connection asynchronously instead of creating hundreds
+  of blocking threads and long-lived read transactions that starve the server
+  and hold back WAL checkpoints (#1866).
 - The web UI's root operator now sees every user's sessions in a project's
   Sessions, Agents and Token usage tabs, on each agent's page and on each
   session's page, and so do the `/api/v1` session list and observations
