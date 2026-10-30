@@ -11,6 +11,13 @@ version in [`docs/changelog/`](docs/changelog/):
 
 ## [Unreleased]
 
+### Fixed
+
+- The CJK index backfill (V87) now also repairs a page or observation
+  stored at rowid `i64::MIN`. The rowid cursor added in 3.2.3 (#1652)
+  started there under an exclusive bound, so that row never entered a batch
+  and kept no derived CJK row; the bound is now inclusive (#1873).
+
 ## [3.2.10] - 2026-10-29
 
 ### Changed
