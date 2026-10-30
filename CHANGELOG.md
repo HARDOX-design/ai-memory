@@ -13,6 +13,10 @@ version in [`docs/changelog/`](docs/changelog/):
 
 ### Fixed
 
+- Bounded the SQLite read pool to four in-flight reads. Bursts of concurrent
+  work now wait for a connection asynchronously instead of creating hundreds
+  of blocking threads and long-lived read transactions that starve the server
+  and hold back WAL checkpoints (#1866).
 - Excluded Codex's generated approval-review transcripts and background
   suggestion prompts from transcript backfill and profile harvesting, and
   kept a hand-reworded profile page attached to its ledger topic even when a
