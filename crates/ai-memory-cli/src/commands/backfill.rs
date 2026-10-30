@@ -2516,8 +2516,9 @@ mod tests {
         assert!(only.is_empty(), "no session matches the filter: {only:?}");
     }
 
-    // This exercises the real listing cap with 201 on-disk transcripts.
-    // Creating, listing and cleaning them takes more than a second on macOS.
+    // These exercise the real listing cap with more than 200 files/rows.
+    // Setup, listing and cleanup take more than a second alone on macOS,
+    // even with the SQLite fixture inserted in one transaction.
     mod slow_explicit_session_lookup {
         use super::*;
 
@@ -2585,83 +2586,83 @@ mod tests {
                 "the exact ID must still belong to this cwd"
             );
         }
-    }
 
-    #[tokio::test]
-    async fn collect_local_sessions_explicit_sql_target_bypasses_listing_cap() {
-        let home = tempfile::tempdir().unwrap();
-        let cwd = tempfile::tempdir().unwrap();
-        let store = home.path().join("opencode");
-        std::fs::create_dir_all(&store).unwrap();
-        let mut db = rusqlite::Connection::open(store.join("opencode.db")).unwrap();
-        let transaction = db.transaction().unwrap();
-        for table in ["session", "session_v2"] {
-            transaction.execute_batch(&format!(
+        #[tokio::test]
+        async fn collect_local_sessions_explicit_sql_target_bypasses_listing_cap() {
+            let home = tempfile::tempdir().unwrap();
+            let cwd = tempfile::tempdir().unwrap();
+            let store = home.path().join("opencode");
+            std::fs::create_dir_all(&store).unwrap();
+            let mut db = rusqlite::Connection::open(store.join("opencode.db")).unwrap();
+            let transaction = db.transaction().unwrap();
+            for table in ["session", "session_v2"] {
+                transaction.execute_batch(&format!(
                 "CREATE TABLE {table}(id TEXT PRIMARY KEY, directory TEXT, time_updated INTEGER);"
             ))
             .unwrap();
-            for index in 0..=PER_HARNESS_SCAN_LIMIT {
-                transaction
-                    .execute(
-                        &format!("INSERT INTO {table} VALUES (?1, ?2, ?3)"),
-                        rusqlite::params![
-                            format!("{table}-{index:04}"),
-                            cwd.path().to_string_lossy(),
-                            1_700_000_000_000_i64 + index as i64,
-                        ],
-                    )
-                    .unwrap();
+                for index in 0..=PER_HARNESS_SCAN_LIMIT {
+                    transaction
+                        .execute(
+                            &format!("INSERT INTO {table} VALUES (?1, ?2, ?3)"),
+                            rusqlite::params![
+                                format!("{table}-{index:04}"),
+                                cwd.path().to_string_lossy(),
+                                1_700_000_000_000_i64 + index as i64,
+                            ],
+                        )
+                        .unwrap();
+                }
             }
-        }
-        transaction.commit().unwrap();
-        let session_dir_for = |harness| {
-            matches!(
-                harness,
-                ManagedHarness::OpenCode | ManagedHarness::OpenCode2
-            )
-            .then(|| store.clone())
-        };
-        let (listed, limit_hit) =
-            collect_local_sessions_with(home.path(), cwd.path(), None, session_dir_for).await;
-        assert_eq!(listed.len(), 2 * PER_HARNESS_SCAN_LIMIT);
-        assert_eq!(
-            limit_hit,
-            vec![ManagedHarness::OpenCode, ManagedHarness::OpenCode2]
-        );
-
-        for (table, harness) in [
-            ("session", ManagedHarness::OpenCode),
-            ("session_v2", ManagedHarness::OpenCode2),
-        ] {
-            let target = format!("{table}-0000");
-            let (selected, limit_hit) = collect_local_sessions_with(
-                home.path(),
-                cwd.path(),
-                Some(&target),
-                session_dir_for,
-            )
-            .await;
-            assert_eq!(selected.len(), 1, "the explicit old {harness:?} session");
-            assert_eq!(selected[0].harness, harness);
-            assert_eq!(selected[0].native_session_id, target);
+            transaction.commit().unwrap();
+            let session_dir_for = |harness| {
+                matches!(
+                    harness,
+                    ManagedHarness::OpenCode | ManagedHarness::OpenCode2
+                )
+                .then(|| store.clone())
+            };
+            let (listed, limit_hit) =
+                collect_local_sessions_with(home.path(), cwd.path(), None, session_dir_for).await;
+            assert_eq!(listed.len(), 2 * PER_HARNESS_SCAN_LIMIT);
             assert_eq!(
-                selected[0].updated_at,
-                SystemTime::UNIX_EPOCH + Duration::from_millis(1_700_000_000_000),
+                limit_hit,
+                vec![ManagedHarness::OpenCode, ManagedHarness::OpenCode2]
             );
-            assert!(limit_hit.is_empty());
 
-            let foreign = tempfile::tempdir().unwrap();
-            let (selected, _) = collect_local_sessions_with(
-                home.path(),
-                foreign.path(),
-                Some(&target),
-                session_dir_for,
-            )
-            .await;
-            assert!(
-                selected.is_empty(),
-                "must not import a foreign {harness:?} session"
-            );
+            for (table, harness) in [
+                ("session", ManagedHarness::OpenCode),
+                ("session_v2", ManagedHarness::OpenCode2),
+            ] {
+                let target = format!("{table}-0000");
+                let (selected, limit_hit) = collect_local_sessions_with(
+                    home.path(),
+                    cwd.path(),
+                    Some(&target),
+                    session_dir_for,
+                )
+                .await;
+                assert_eq!(selected.len(), 1, "the explicit old {harness:?} session");
+                assert_eq!(selected[0].harness, harness);
+                assert_eq!(selected[0].native_session_id, target);
+                assert_eq!(
+                    selected[0].updated_at,
+                    SystemTime::UNIX_EPOCH + Duration::from_millis(1_700_000_000_000),
+                );
+                assert!(limit_hit.is_empty());
+
+                let foreign = tempfile::tempdir().unwrap();
+                let (selected, _) = collect_local_sessions_with(
+                    home.path(),
+                    foreign.path(),
+                    Some(&target),
+                    session_dir_for,
+                )
+                .await;
+                assert!(
+                    selected.is_empty(),
+                    "must not import a foreign {harness:?} session"
+                );
+            }
         }
     }
 
