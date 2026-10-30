@@ -16,6 +16,14 @@ version in [`docs/changelog/`](docs/changelog/):
 - Refreshed existing ai-memory-owned OpenCode, OpenCode 2, OMP, Pi, and
   OpenClaw generated TypeScript integrations during `ai-memory upgrade`, while
   leaving absent and user-owned installs untouched (#1869).
+- The web UI's root operator now sees every user's sessions in a project's
+  Sessions, Agents and Token usage tabs, on each agent's page and on each
+  session's page, and so do the `/api/v1` session list and observations
+  routes. The dashboard counted every user's sessions while these drilldowns
+  listed only root's own, so on a shared server most counted sessions could
+  not be opened. Other users still see only their own sessions plus shared
+  ones (#1867).
+
 - Excluded Codex's generated approval-review transcripts and background
   suggestion prompts from transcript backfill and profile harvesting, and
   kept a hand-reworded profile page attached to its ledger topic even when a
