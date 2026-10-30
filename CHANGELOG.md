@@ -32,6 +32,10 @@ version in [`docs/changelog/`](docs/changelog/):
   not be opened. Other users still see only their own sessions plus shared
   ones (#1867).
 
+- `backfill --session <id>` now finds an explicitly named native session beyond
+  the newest 200-session listing, instead of reporting a successful empty import.
+  Exact lookups retain the adapter's checkout and top-level-session checks;
+  automatic enumeration remains bounded (#1874).
 - Excluded Codex's generated approval-review transcripts and background
   suggestion prompts from transcript backfill and profile harvesting, and
   kept a hand-reworded profile page attached to its ledger topic even when a
