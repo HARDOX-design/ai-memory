@@ -13,6 +13,11 @@ version in [`docs/changelog/`](docs/changelog/):
 
 ### Fixed
 
+- Project search links now use the project's current stored name after
+  resolving a canonical or legacy key. Results no longer lead to a 404 when
+  searched through the other spelling, and the breadcrumb and scope selector
+  stay on that project without renaming it (#PR).
+
 - The web UI's root operator now sees every user's sessions in a project's
   Sessions, Agents and Token usage tabs, on each agent's page and on each
   session's page, and so do the `/api/v1` session list and observations
