@@ -14,8 +14,9 @@ version in [`docs/changelog/`](docs/changelog/):
 ### Fixed
 
 - Refreshed existing ai-memory-owned OpenCode, OpenCode 2, OMP, Pi, and
-  OpenClaw generated TypeScript integrations during `ai-memory upgrade`, while
-  leaving absent and user-owned installs untouched (#1869).
+  OpenClaw generated TypeScript integrations during `ai-memory upgrade` using
+  the newly installed binary's templates, while leaving absent and user-owned
+  installs untouched (#1869).
 - The web UI's root operator now sees every user's sessions in a project's
   Sessions, Agents and Token usage tabs, on each agent's page and on each
   session's page, and so do the `/api/v1` session list and observations

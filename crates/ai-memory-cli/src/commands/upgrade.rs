@@ -30,6 +30,7 @@
 use std::fs;
 use std::io::Cursor;
 use std::path::{Component, Path, PathBuf};
+use std::process::{Command, Stdio};
 use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
@@ -64,7 +65,7 @@ const UNIX_EXECUTABLE_MODE: u32 = 0o755;
 type StagedAgentList = Vec<(String, AgentChoice)>;
 
 /// Run the `upgrade` subcommand.
-pub async fn run(config: &Config, args: UpgradeArgs) -> Result<()> {
+pub async fn run(config: &Config, config_path: Option<&Path>, args: UpgradeArgs) -> Result<()> {
     let exe = resolve_current_exe()?;
     ensure_supported_install(&exe)?;
 
@@ -79,14 +80,49 @@ pub async fn run(config: &Config, args: UpgradeArgs) -> Result<()> {
     let extract_root = download_and_extract_release(&fetcher, &base, &tag).await?;
     apply_extracted_release(extract_root.path(), &exe)?;
 
-    // Sync FS after await is intentional for this CLI one-shot path.
-    refresh_staged_hooks(config)?;
-    refresh_generated_integrations(config);
+    // The running process still contains the old release's embedded templates.
+    // Re-enter through the replacement executable so every generated hook is
+    // rendered by the version that was just installed.
+    run_replacement_refresh(&exe, &config.data_dir, config_path)?;
     refresh_plugins(config, &super::user_service::SystemRunner);
     warn_remote_server(config);
     println!("✓ upgraded to {tag}");
     info!(%tag, path = %exe.display(), "native upgrade complete");
     Ok(())
+}
+
+/// Refresh staged and generated integrations from the replacement process.
+/// This is reached only through the hidden `upgrade-refresh-hooks` command.
+pub(crate) fn refresh_after_replace(config: &Config) -> Result<()> {
+    refresh_staged_hooks(config)?;
+    refresh_generated_integrations(config);
+    Ok(())
+}
+
+fn run_replacement_refresh(exe: &Path, data_dir: &Path, config_path: Option<&Path>) -> Result<()> {
+    let mut command = replacement_refresh_command(exe, data_dir, config_path);
+    let status = command
+        .status()
+        .with_context(|| format!("starting replacement executable {}", exe.display()))?;
+    if !status.success() {
+        bail!(
+            "the new binary was installed, but its hook refresh exited with {status}; \
+             run `{} --data-dir {} upgrade-refresh-hooks`",
+            exe.display(),
+            data_dir.display()
+        );
+    }
+    Ok(())
+}
+
+fn replacement_refresh_command(exe: &Path, data_dir: &Path, config_path: Option<&Path>) -> Command {
+    let mut command = Command::new(exe);
+    command.arg("--data-dir").arg(data_dir);
+    if let Some(path) = config_path {
+        command.arg("--config").arg(path);
+    }
+    command.arg("upgrade-refresh-hooks").stdin(Stdio::null());
+    command
 }
 
 fn resolve_current_exe() -> Result<PathBuf> {
@@ -1140,6 +1176,36 @@ mod tests {
     use tar::Header;
     use zip::ZipWriter;
     use zip::write::SimpleFileOptions;
+
+    #[test]
+    fn replacement_binary_refresh_receives_the_loaded_config_coordinates() {
+        let exe = Path::new("/opt/ai memory/bin/ai-memory");
+        let data = Path::new("/srv/memory data");
+        let config = Path::new("/etc/ai memory/config.toml");
+        let command = replacement_refresh_command(exe, data, Some(config));
+
+        assert_eq!(command.get_program(), exe.as_os_str());
+        assert_eq!(
+            command.get_args().collect::<Vec<_>>(),
+            [
+                "--data-dir".as_ref(),
+                data.as_os_str(),
+                "--config".as_ref(),
+                config.as_os_str(),
+                "upgrade-refresh-hooks".as_ref(),
+            ]
+        );
+
+        let command = replacement_refresh_command(exe, data, None);
+        assert_eq!(
+            command.get_args().collect::<Vec<_>>(),
+            [
+                "--data-dir".as_ref(),
+                data.as_os_str(),
+                "upgrade-refresh-hooks".as_ref(),
+            ]
+        );
+    }
 
     /// `upgrade` keeps an installed Claude Code plugin in step with the
     /// binary: marketplace update, then plugin update. Without the plugin,
