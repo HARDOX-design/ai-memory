@@ -13,6 +13,9 @@ version in [`docs/changelog/`](docs/changelog/):
 
 ### Fixed
 
+- The CJK index backfill (V87) now also repairs a page or observation stored at
+  rowid `i64::MIN`. Its exclusive initial cursor skipped that one valid SQLite
+  rowid; the inclusive cursor now covers both rowid extremes (#1873).
 - Bounded the SQLite read pool to four in-flight reads. Bursts of concurrent
   work now wait for a connection asynchronously instead of creating hundreds
   of blocking threads and long-lived read transactions that starve the server
