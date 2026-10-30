@@ -13,6 +13,9 @@ version in [`docs/changelog/`](docs/changelog/):
 
 ### Fixed
 
+- Refreshed existing ai-memory-owned OpenCode, OpenCode 2, OMP, Pi, and
+  OpenClaw generated TypeScript integrations during `ai-memory upgrade`, while
+  leaving absent and user-owned installs untouched (#1869).
 - Excluded Codex's generated approval-review transcripts and background
   suggestion prompts from transcript backfill and profile harvesting, and
   kept a hand-reworded profile page attached to its ledger topic even when a

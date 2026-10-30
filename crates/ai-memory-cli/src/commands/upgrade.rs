@@ -6,7 +6,7 @@
 //! `docs/macos.md`, Windows zip in `docs/windows.md` Scenario C): download the
 //! matching archive + `.sha256`, verify, replace the on-disk binary (and sibling
 //! `hooks/` when present), then re-run `install-hooks --apply` for every staged
-//! agent.
+//! agent and every existing ai-memory-owned generated TypeScript integration.
 //!
 //! Client-only: never claims to upgrade a remote/homelab server.
 //!
@@ -81,6 +81,7 @@ pub async fn run(config: &Config, args: UpgradeArgs) -> Result<()> {
 
     // Sync FS after await is intentional for this CLI one-shot path.
     refresh_staged_hooks(config)?;
+    refresh_generated_integrations(config);
     refresh_plugins(config, &super::user_service::SystemRunner);
     warn_remote_server(config);
     println!("✓ upgraded to {tag}");
@@ -805,6 +806,66 @@ fn refresh_staged_hooks(config: &Config) -> Result<()> {
     }
     refresh_agent_list(config, &agents);
     Ok(())
+}
+
+const GENERATED_INTEGRATIONS: &[(&str, AgentChoice)] = &[
+    ("opencode", AgentChoice::OpenCode),
+    ("opencode2", AgentChoice::OpenCode2),
+    ("omp", AgentChoice::Omp),
+    ("pi", AgentChoice::Pi),
+    ("openclaw", AgentChoice::Openclaw),
+];
+
+fn refresh_generated_integrations(config: &Config) {
+    for &(name, agent) in GENERATED_INTEGRATIONS {
+        let path = match default_generated_integration_path(agent) {
+            Ok(path) => path,
+            Err(err) => {
+                println!("  (skipping generated {name} integration — {err:#})");
+                continue;
+            }
+        };
+        let owned = fs::read_to_string(&path).is_ok_and(|content| {
+            install_hooks::generated_integration_content_is_owned(agent, &content)
+        });
+        if !owned {
+            continue;
+        }
+
+        println!("→ refreshing generated {name} integration");
+        let mut args = apply_hooks_args(agent);
+        args.config_file = if agent == AgentChoice::Openclaw {
+            path.parent().map(Path::to_path_buf)
+        } else {
+            Some(path.clone())
+        };
+        let result = if agent == AgentChoice::OpenCode {
+            install_hooks::run_with_opencode_dialect(
+                config,
+                args,
+                Some(ai_memory_workstream::OpenCodeDialect::V1),
+            )
+        } else {
+            install_hooks::run(config, args)
+        };
+        if let Err(err) = result {
+            println!(
+                "      (skipped — {err:#}; re-run `ai-memory install-hooks --agent {name} --apply`)"
+            );
+        }
+    }
+}
+
+fn default_generated_integration_path(agent: AgentChoice) -> Result<PathBuf> {
+    match agent {
+        AgentChoice::OpenCode => install_hooks::opencode_plugin_path(),
+        AgentChoice::OpenCode2 => install_hooks::opencode2_plugin_path(),
+        AgentChoice::Omp => install_hooks::omp_extension_path(None),
+        AgentChoice::Pi => install_hooks::pi_extension_path(),
+        AgentChoice::Openclaw => Ok(crate::commands::openclaw_plugin::default_plugin_dir()?
+            .join(crate::commands::openclaw_plugin::ENTRYPOINT_TS)),
+        _ => bail!("not a generated TypeScript integration: {agent:?}"),
+    }
 }
 
 /// Keep the marketplace plugins in step with the binary (#1166). Claude Code
